@@ -1,3 +1,6 @@
+#![allow(dead_code)]
+#![allow(non_snake_case)]
+
 const A: u32 = 0x67452301;
 const B: u32 = 0xefcdab89;
 const C: u32 = 0x98badcfe;
@@ -64,10 +67,10 @@ fn T2(a: u32, b: u32, c: u32, d: u32, k: usize, s: u8, word: u16) -> u32 {
 }
 
 fn T3(a: u32, b: u32, c: u32, d: u32, k: usize, s: u8, word: u16) -> u32 {
-  (a + H(b, c, d) + (word & (1 << k)) + 0x6ED9EBA1) << s
+  (a + H(b, c, d) + (word & (1 << k)) as u32 + 0x6ED9EBA1) << s
 }
 
-fn round1(a: u32, b: u32, c: u32, d: u32, word: u32) -> (u32, u32, u32, u32) {
+fn round1(mut a: u32, mut b: u32, mut c: u32, mut d: u32, word: u16) -> (u32, u32, u32, u32) {
   a = T1(a, b, c, d,  0,  3, word);
   d = T1(d, a, b, c,  1,  7, word);
   c = T1(c, d, a, b,  2, 11, word);
@@ -87,7 +90,7 @@ fn round1(a: u32, b: u32, c: u32, d: u32, word: u32) -> (u32, u32, u32, u32) {
   return (a, b, c, d);
 }
 
-fn round2(a: u32, b: u32, c: u32, d: u32, word: u32) -> (u32, u32, u32, u32) {
+fn round2(mut a: u32, mut b: u32, mut c: u32, mut d: u32, word: u16) -> (u32, u32, u32, u32) {
   a = T2(a, b, c, d,  0,  3, word);
   d = T2(d, a, b, c,  4,  5, word);
   c = T2(c, d, a, b,  8,  9, word);
@@ -107,7 +110,7 @@ fn round2(a: u32, b: u32, c: u32, d: u32, word: u32) -> (u32, u32, u32, u32) {
   return (a, b, c, d);
 }
 
-fn round3(a: u32, b: u32, c: u32, d: u32, word: u32) -> (u32, u32, u32, u32) {
+fn round3(mut a: u32, mut b: u32, mut c: u32, mut d: u32, word: u16) -> (u32, u32, u32, u32) {
   a = T3(a, b, c, d,  0,  3, word);
   d = T3(d, a, b, c,  8,  9, word);
   c = T3(c, d, a, b,  4, 11, word);
@@ -127,10 +130,26 @@ fn round3(a: u32, b: u32, c: u32, d: u32, word: u32) -> (u32, u32, u32, u32) {
   return (a, b, c, d);
 }
 
-fn process_word(a: u32, b: u32, c: u32, d: u32, word: u16) {
-  (a, b, c, d) = round1(a, b, c, d, word);
-  (a, b, c, d) = round2(a, b, c, d, word);
-  (a, b, c, d) = round3(a, b, c, d, word);
+fn process_word(a: u32, b: u32, c: u32, d: u32, word: u16) -> (u32, u32, u32, u32) {
+  let (a, b, c, d) = round1(a, b, c, d, word);
+  let (a, b, c, d) = round2(a, b, c, d, word);
+  let (a, b, c, d) = round3(a, b, c, d, word);
+  return (a, b, c, d);
+}
+
+pub fn process_buffer(buffer: Vec<u8>) -> (u32, u32, u32, u32) {
+  let mut a = A;
+  let mut b = B;
+  let mut c = C;
+  let mut d = D;
+  for i in 0..buffer.len() {
+    let j = i * 2;
+    let mut word: u16 = buffer[j] as u16;
+    word <<= 8;
+    word |= buffer[j + 1] as u16;
+    let (ra, rb, rc, rd) = process_word(a, b, c, d, word);
+    a = ra; b = rb; c = rc; d = rd;
+  }
   return (a, b, c, d);
 }
 
