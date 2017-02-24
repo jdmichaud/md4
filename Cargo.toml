@@ -1,5 +1,5 @@
 [package]
-name = "md4"
+name = "hash"
 version = "0.1.0"
 authors = ["JD <jeandaniel.michaud@ge.com>"]
 

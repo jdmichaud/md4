@@ -1,1 +1,1 @@
-mod md4;
+pub mod md4;

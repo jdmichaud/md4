@@ -1,6 +1,8 @@
 #![allow(dead_code)]
 #![allow(non_snake_case)]
 
+use std::num::Wrapping;
+
 const A: u32 = 0x67452301;
 const B: u32 = 0xefcdab89;
 const C: u32 = 0x98badcfe;
@@ -59,15 +61,15 @@ fn G(X: u32, Y: u32, Z: u32) -> u32 { (X & Y) | (X & Z) | (Y & Z) }
 fn H(X: u32, Y: u32, Z: u32) -> u32 { X ^ Y ^ Z }
 
 fn T1(a: u32, b: u32, c: u32, d: u32, k: usize, s: u8, word: u16) -> u32 {
-  (a + F(b, c, d) + (word & (1 << k)) as u32) << s
+  (Wrapping(a) + Wrapping(F(b, c, d)) + Wrapping((word & (1 << k)) as u32)).0 << s
 }
 
 fn T2(a: u32, b: u32, c: u32, d: u32, k: usize, s: u8, word: u16) -> u32 {
-  (a + G(b, c, d) + (word & (1 << k)) as u32 + 0x5A827999) << s
+  (Wrapping(a) + Wrapping(G(b, c, d)) + Wrapping((word & (1 << k)) as u32) + Wrapping(0x5A827999)).0 << s
 }
 
 fn T3(a: u32, b: u32, c: u32, d: u32, k: usize, s: u8, word: u16) -> u32 {
-  (a + H(b, c, d) + (word & (1 << k)) as u32 + 0x6ED9EBA1) << s
+  (Wrapping(a) + Wrapping(H(b, c, d)) + Wrapping((word & (1 << k)) as u32) + Wrapping(0x6ED9EBA1)).0 << s
 }
 
 fn round1(mut a: u32, mut b: u32, mut c: u32, mut d: u32, word: u16) -> (u32, u32, u32, u32) {
@@ -142,7 +144,8 @@ pub fn process_buffer(buffer: Vec<u8>) -> (u32, u32, u32, u32) {
   let mut b = B;
   let mut c = C;
   let mut d = D;
-  for i in 0..buffer.len() {
+  let half_length = buffer.len() / 2;
+  for i in 0..half_length {
     let j = i * 2;
     let mut word: u16 = buffer[j] as u16;
     word <<= 8;
@@ -191,5 +194,62 @@ mod test {
     assert_eq!(append_size(1), vec![0, 0, 0, 1, 0, 0, 0, 0]);
     assert_eq!(append_size(256), vec![0, 0, 1, 0, 0, 0, 0, 0]);
     assert_eq!(append_size(0xDEADBEEFCAFEBABE), vec![0xCA, 0xFE, 0xBA, 0xBE, 0xDE, 0xAD, 0xBE, 0xEF]);
+  }
+
+  #[test]
+  fn test_F() {
+    assert_eq!(F(0b00001111000000000000000000000000,
+                 0b00110011000000000000000000000000,
+                 0b01010101000000000000000000000000),
+                 0b01010011000000000000000000000000);
+  }
+
+  #[test]
+  fn test_G() {
+    assert_eq!(G(0b00001111000000000000000000000000,
+                 0b00110011000000000000000000000000,
+                 0b01010101000000000000000000000000),
+                 0b00010111000000000000000000000000);
+  }
+
+  #[test]
+  fn test_H() {
+    assert_eq!(H(0b00001111000000000000000000000000,
+                 0b00110011000000000000000000000000,
+                 0b01010101000000000000000000000000),
+                 0b01101001000000000000000000000000);
+  }
+
+  #[test]
+  fn test_T1() {
+    assert_eq!(T1(
+      0b00001111000000000000000000000000,
+      0b00001111000000000000000000000000,
+      0b00110011000000000000000000000000,
+      0b01010101000000000000000000000000,
+      7,
+      3, // Shift of three
+      0b0000000010000000, // 7th bit
+    ), 0b00010000000000000000010000000000);
+  }
+  // fn T1(a: u32, b: u32, c: u32, d: u32, k: usize, s: u8, word: u16) -> u32 {
+
+  #[test]
+  fn test_T2() {
+  }
+
+  #[test]
+  fn test_T3() {
+  }
+
+  #[test]
+  fn test_process_buffer() {
+    assert_eq!(process_buffer("".to_string().into_bytes()), (0xcfe031d6, 0xe931d16a, 0x59d7b73c, 0x89c0e0c0));
+    assert_eq!(process_buffer("a".to_string().into_bytes()), (0x2cb3bde5, 0x3e461de3, 0x05fb245e, 0xfb24dbd6));
+    assert_eq!(process_buffer("abc".to_string().into_bytes()), (0x017aa448, 0xd852af21, 0x0ae85fc1, 0x729d7aa6));
+    assert_eq!(process_buffer("message digest".to_string().into_bytes()), (0x0a81d913, 0x9fe86454, 0x48061887, 0x014be1c7));
+    assert_eq!(process_buffer("abcdefghijklmnopqrstuvwxyz".to_string().into_bytes()), (0x1c30d79e, 0xbbcd8aa5, 0xed63eea8, 0x2da9df41));
+    assert_eq!(process_buffer("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789".to_string().into_bytes()), (0x8582043f, 0xdb35f241, 0x27e11ce6, 0xf0e453e7));
+    assert_eq!(process_buffer("12345678901234567890123456789012345678901234567890123456789012345678901234567890".to_string().into_bytes()), (0x4ddce33b, 0xf2199c38, 0x7b169c3e, 0x05364fcc));
   }
 }
