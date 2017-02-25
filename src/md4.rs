@@ -12,14 +12,13 @@ const D: u32 = 0x10325476;
  * size is the size of the message in bytes
  * returns padding words
  */
-fn pad(size: u64) -> Vec<u8> {
-  let last_word = size % 64u64; // 512 / 8 = 64
-  let nb_of_empty_word = if last_word < 56u64 { // 448 / 8 = 56
-    55u64 - last_word
+fn pad(size: usize) -> Vec<u8> {
+  let last_word = size % 64usize; // 512 / 8 = 64
+  let nb_of_empty_word = if last_word < 56usize { // 448 / 8 = 56
+    55usize - last_word
   } else {
-    63u64 - (last_word - 56u64)
+    63usize - (last_word - 56usize)
   };
-  println!("nb_of_empty_word:{}", nb_of_empty_word);
   let mut vec: Vec<u8> = Vec::new();
   vec.push(0x80u8);
   for _ in 0..nb_of_empty_word {
@@ -42,14 +41,14 @@ fn append_size(dword: u64) -> Vec<u8> {
   let b8 = (dword >> 56 & 0x00000000000000FF) as u8;
   let mut vec = vec![0;8];
   // Push low order first
-  vec[0] = b4;
-  vec[1] = b3;
-  vec[2] = b2;
-  vec[3] = b1;
-  vec[4] = b8;
-  vec[5] = b7;
-  vec[6] = b6;
-  vec[7] = b5;
+  vec[0] = b1;
+  vec[1] = b2;
+  vec[2] = b3;
+  vec[3] = b4;
+  vec[4] = b5;
+  vec[5] = b6;
+  vec[6] = b7;
+  vec[7] = b8;
   return vec;
 }
 
@@ -60,100 +59,111 @@ fn G(X: u32, Y: u32, Z: u32) -> u32 { (X & Y) | (X & Z) | (Y & Z) }
 // Only one
 fn H(X: u32, Y: u32, Z: u32) -> u32 { X ^ Y ^ Z }
 
-fn T1(a: u32, b: u32, c: u32, d: u32, k: usize, s: u8, word: u16) -> u32 {
-  (Wrapping(a) + Wrapping(F(b, c, d)) + Wrapping((word & (1 << k)) as u32)).0 << s
+fn T1(a: u32, b: u32, c: u32, d: u32, word: u32, s: u8) -> u32 {
+  ((Wrapping(a) + Wrapping(F(b, c, d)) + Wrapping(word)).0).rotate_left(s as u32)
 }
 
-fn T2(a: u32, b: u32, c: u32, d: u32, k: usize, s: u8, word: u16) -> u32 {
-  (Wrapping(a) + Wrapping(G(b, c, d)) + Wrapping((word & (1 << k)) as u32) + Wrapping(0x5A827999)).0 << s
+fn T2(a: u32, b: u32, c: u32, d: u32, word: u32, s: u8) -> u32 {
+  ((Wrapping(a) + Wrapping(G(b, c, d)) + Wrapping(word) + Wrapping(0x5A827999)).0).rotate_left(s as u32)
 }
 
-fn T3(a: u32, b: u32, c: u32, d: u32, k: usize, s: u8, word: u16) -> u32 {
-  (Wrapping(a) + Wrapping(H(b, c, d)) + Wrapping((word & (1 << k)) as u32) + Wrapping(0x6ED9EBA1)).0 << s
+fn T3(a: u32, b: u32, c: u32, d: u32, word: u32, s: u8) -> u32 {
+  ((Wrapping(a) + Wrapping(H(b, c, d)) + Wrapping(word) + Wrapping(0x6ED9EBA1)).0).rotate_left(s as u32)
 }
 
-fn round1(mut a: u32, mut b: u32, mut c: u32, mut d: u32, word: u16) -> (u32, u32, u32, u32) {
-  a = T1(a, b, c, d,  0,  3, word);
-  d = T1(d, a, b, c,  1,  7, word);
-  c = T1(c, d, a, b,  2, 11, word);
-  b = T1(b, c, d, a,  3, 19, word);
-  a = T1(a, b, c, d,  4,  3, word);
-  d = T1(d, a, b, c,  5,  7, word);
-  c = T1(c, d, a, b,  6, 11, word);
-  b = T1(b, c, d, a,  7, 19, word);
-  a = T1(a, b, c, d,  8,  3, word);
-  d = T1(d, a, b, c,  9,  7, word);
-  c = T1(c, d, a, b, 10, 11, word);
-  b = T1(b, c, d, a, 11, 19, word);
-  a = T1(a, b, c, d, 12,  3, word);
-  d = T1(d, a, b, c, 13,  7, word);
-  c = T1(c, d, a, b, 14, 11, word);
-  b = T1(b, c, d, a, 15, 19, word);
+fn round1(mut a: u32, mut b: u32, mut c: u32, mut d: u32, block: &[u32]) -> (u32, u32, u32, u32) {
+  a = T1(a, b, c, d,  block[0],  3);
+  d = T1(d, a, b, c,  block[1],  7);
+  c = T1(c, d, a, b,  block[2], 11);
+  b = T1(b, c, d, a,  block[3], 19);
+  a = T1(a, b, c, d,  block[4],  3);
+  d = T1(d, a, b, c,  block[5],  7);
+  c = T1(c, d, a, b,  block[6], 11);
+  b = T1(b, c, d, a,  block[7], 19);
+  a = T1(a, b, c, d,  block[8],  3);
+  d = T1(d, a, b, c,  block[9],  7);
+  c = T1(c, d, a, b, block[10], 11);
+  b = T1(b, c, d, a, block[11], 19);
+  a = T1(a, b, c, d, block[12],  3);
+  d = T1(d, a, b, c, block[13],  7);
+  c = T1(c, d, a, b, block[14], 11);
+  b = T1(b, c, d, a, block[15], 19);
   return (a, b, c, d);
 }
 
-fn round2(mut a: u32, mut b: u32, mut c: u32, mut d: u32, word: u16) -> (u32, u32, u32, u32) {
-  a = T2(a, b, c, d,  0,  3, word);
-  d = T2(d, a, b, c,  4,  5, word);
-  c = T2(c, d, a, b,  8,  9, word);
-  b = T2(b, c, d, a, 12, 13, word);
-  a = T2(a, b, c, d,  1,  3, word);
-  d = T2(d, a, b, c,  5,  5, word);
-  c = T2(c, d, a, b,  9,  9, word);
-  b = T2(b, c, d, a, 13, 13, word);
-  a = T2(a, b, c, d,  2,  3, word);
-  d = T2(d, a, b, c,  6,  5, word);
-  c = T2(c, d, a, b, 10,  9, word);
-  b = T2(b, c, d, a, 14, 13, word);
-  a = T2(a, b, c, d,  3,  3, word);
-  d = T2(d, a, b, c,  7,  5, word);
-  c = T2(c, d, a, b, 11,  9, word);
-  b = T2(b, c, d, a, 15, 13, word);
+fn round2(mut a: u32, mut b: u32, mut c: u32, mut d: u32, block: &[u32]) -> (u32, u32, u32, u32) {
+  a = T2(a, b, c, d,  block[0],  3);
+  d = T2(d, a, b, c,  block[4],  5);
+  c = T2(c, d, a, b,  block[8],  9);
+  b = T2(b, c, d, a, block[12], 13);
+  a = T2(a, b, c, d,  block[1],  3);
+  d = T2(d, a, b, c,  block[5],  5);
+  c = T2(c, d, a, b,  block[9],  9);
+  b = T2(b, c, d, a, block[13], 13);
+  a = T2(a, b, c, d,  block[2],  3);
+  d = T2(d, a, b, c,  block[6],  5);
+  c = T2(c, d, a, b, block[10],  9);
+  b = T2(b, c, d, a, block[14], 13);
+  a = T2(a, b, c, d,  block[3],  3);
+  d = T2(d, a, b, c,  block[7],  5);
+  c = T2(c, d, a, b, block[11],  9);
+  b = T2(b, c, d, a, block[15], 13);
   return (a, b, c, d);
 }
 
-fn round3(mut a: u32, mut b: u32, mut c: u32, mut d: u32, word: u16) -> (u32, u32, u32, u32) {
-  a = T3(a, b, c, d,  0,  3, word);
-  d = T3(d, a, b, c,  8,  9, word);
-  c = T3(c, d, a, b,  4, 11, word);
-  b = T3(b, c, d, a, 12, 15, word);
-  a = T3(a, b, c, d,  2,  3, word);
-  d = T3(d, a, b, c, 10,  9, word);
-  c = T3(c, d, a, b,  6, 11, word);
-  b = T3(b, c, d, a, 14, 15, word);
-  a = T3(a, b, c, d,  1,  3, word);
-  d = T3(d, a, b, c,  9,  9, word);
-  c = T3(c, d, a, b,  5, 11, word);
-  b = T3(b, c, d, a, 13, 15, word);
-  a = T3(a, b, c, d,  3,  3, word);
-  d = T3(d, a, b, c, 11,  9, word);
-  c = T3(c, d, a, b,  7, 11, word);
-  b = T3(b, c, d, a, 15, 15, word);
+fn round3(mut a: u32, mut b: u32, mut c: u32, mut d: u32, block: &[u32]) -> (u32, u32, u32, u32) {
+  a = T3(a, b, c, d,  block[0],  3);
+  d = T3(d, a, b, c,  block[8],  9);
+  c = T3(c, d, a, b,  block[4], 11);
+  b = T3(b, c, d, a, block[12], 15);
+  a = T3(a, b, c, d,  block[2],  3);
+  d = T3(d, a, b, c, block[10],  9);
+  c = T3(c, d, a, b,  block[6], 11);
+  b = T3(b, c, d, a, block[14], 15);
+  a = T3(a, b, c, d,  block[1],  3);
+  d = T3(d, a, b, c,  block[9],  9);
+  c = T3(c, d, a, b,  block[5], 11);
+  b = T3(b, c, d, a, block[13], 15);
+  a = T3(a, b, c, d,  block[3],  3);
+  d = T3(d, a, b, c, block[11],  9);
+  c = T3(c, d, a, b,  block[7], 11);
+  b = T3(b, c, d, a, block[15], 15);
   return (a, b, c, d);
 }
 
-fn process_word(a: u32, b: u32, c: u32, d: u32, word: u16) -> (u32, u32, u32, u32) {
-  let (a, b, c, d) = round1(a, b, c, d, word);
-  let (a, b, c, d) = round2(a, b, c, d, word);
-  let (a, b, c, d) = round3(a, b, c, d, word);
+fn process_block(a: u32, b: u32, c: u32, d: u32, block: &[u32]) -> (u32, u32, u32, u32) {
+  let (a, b, c, d) = round1(a, b, c, d, block);
+  let (a, b, c, d) = round2(a, b, c, d, block);
+  let (a, b, c, d) = round3(a, b, c, d, block);
   return (a, b, c, d);
 }
 
-pub fn process_buffer(buffer: Vec<u8>) -> (u32, u32, u32, u32) {
+pub fn process_buffer(mut buffer: Vec<u8>) -> (u32, u32, u32, u32) {
   let mut a = A;
   let mut b = B;
   let mut c = C;
   let mut d = D;
-  let half_length = buffer.len() / 2;
-  for i in 0..half_length {
-    let j = i * 2;
-    let mut word: u16 = buffer[j] as u16;
-    word <<= 8;
-    word |= buffer[j + 1] as u16;
-    let (ra, rb, rc, rd) = process_word(a, b, c, d, word);
-    a = ra; b = rb; c = rc; d = rd;
+  let buffer_length = buffer.len();
+  buffer.append(&mut pad(buffer_length));
+  buffer.append(&mut append_size((buffer_length << 3) as u64));
+  // Now buffer size is a multiple of 64 (number of bits multiple of 512)
+  let number_of_blocks = buffer.len() >> 6;
+  for k in 0..number_of_blocks {
+    let mut block = [0u32; 16];
+    for i in 0..16 {
+      let j = k * 64 + i * 4;
+      // MD4 expect the least significant byte first, so to create a u32 from 4 u8,
+      // We need to swap them
+      block[i] = (buffer[j] as u32) | (buffer[j + 1] as u32) << 8 |
+        (buffer[j + 2] as u32) << 16 | (buffer[j + 3] as u32) << 24;
+    }
+    let (ra, rb, rc, rd) = process_block(a, b, c, d, &block);
+    a = (Wrapping(a) + Wrapping(ra)).0;
+    b = (Wrapping(b) + Wrapping(rb)).0;
+    c = (Wrapping(c) + Wrapping(rc)).0;
+    d = (Wrapping(d) + Wrapping(rd)).0;
   }
-  return (a, b, c, d);
+  return (u32::from_be(a), u32::from_be(b), u32::from_be(c), u32::from_be(d));
 }
 
 #[cfg(test)]
@@ -161,7 +171,7 @@ mod test {
   use super::*;
 
   #[test]
-  fn pad_test() {
+  fn test_pad() {
     let mut result = pad(0);
     assert_eq!(result.len(), 56);
     assert_eq!(result[0], 0x80);
@@ -191,9 +201,9 @@ mod test {
   #[test]
   fn append_size_test() {
     assert_eq!(append_size(0), vec![0, 0, 0, 0, 0, 0, 0, 0]);
-    assert_eq!(append_size(1), vec![0, 0, 0, 1, 0, 0, 0, 0]);
-    assert_eq!(append_size(256), vec![0, 0, 1, 0, 0, 0, 0, 0]);
-    assert_eq!(append_size(0xDEADBEEFCAFEBABE), vec![0xCA, 0xFE, 0xBA, 0xBE, 0xDE, 0xAD, 0xBE, 0xEF]);
+    assert_eq!(append_size(1), vec![1, 0, 0, 0, 0, 0, 0, 0]);
+    assert_eq!(append_size(256), vec![0, 1, 0, 0, 0, 0, 0, 0]);
+    assert_eq!(append_size(0xDEADBEEFCAFEBABE), vec![0xBE, 0xBA, 0xFE, 0xCA, 0xEF, 0xBE, 0xAD, 0xDE]);
   }
 
   #[test]
@@ -222,34 +232,81 @@ mod test {
 
   #[test]
   fn test_T1() {
+    //                          b 0b00001111000000000000000000000000
+    //                          c 0b00110011000000000000000000000000
+    //                          d 0b01010101000000000000000000000000
+    //                 F(b, c, d) 0b01010011000000000000000000000000
+    //                          a 0b10011010110100001100010001001100
+    //             a + F(b, c, d) 0b11101101110100001100010001001100
+    //                       word 0b01101001110100001101010011100010
+    //      a + F(b, c, d) + word 0b01010111101000011001100100101110
+    // a + F(b, c, d) + word << s 0b10111101000011001100100101110010
     assert_eq!(T1(
-      0b00001111000000000000000000000000,
+      0b10011010110100001100010001001100,
       0b00001111000000000000000000000000,
       0b00110011000000000000000000000000,
       0b01010101000000000000000000000000,
-      7,
-      3, // Shift of three
-      0b0000000010000000, // 7th bit
-    ), 0b00010000000000000000010000000000);
+      0b01101001110100001101010011100010,
+      3, // Rotary shift of three
+    ),0b10111101000011001100100101110010);
   }
-  // fn T1(a: u32, b: u32, c: u32, d: u32, k: usize, s: u8, word: u16) -> u32 {
 
   #[test]
   fn test_T2() {
+    //                                       b 0b00001111000000000000000000000000
+    //                                       c 0b00110011000000000000000000000000
+    //                                       d 0b01010101000000000000000000000000
+    //                              G(b, c, d) 0b00010111000000000000000000000000
+    //                                       a 0b10011010110100001100010001001100
+    //                          a + G(b, c, d) 0b10110001110100001100010001001100
+    //                                    word 0b01101001110100001101010011100010
+    //                   a + G(b, c, d) + word 0b00011011101000011001100100101110
+    //                              0x5A827999 0b01011010100000100111100110011001
+    //      a + G(b, c, d) + word + 0x5A827999 0b01110110001001000001001011000111
+    // a + G(b, c, d) + word + 0x5A827999 << s 0b10110001001000001001011000111011
+    assert_eq!(T2(
+      0b10011010110100001100010001001100,
+      0b00001111000000000000000000000000,
+      0b00110011000000000000000000000000,
+      0b01010101000000000000000000000000,
+      0b01101001110100001101010011100010,
+      3, // Rotary shift of three
+    ),0b10110001001000001001011000111011);
   }
 
   #[test]
   fn test_T3() {
+    //                                       b 0b00001111000000000000000000000000
+    //                                       c 0b00110011000000000000000000000000
+    //                                       d 0b01010101000000000000000000000000
+    //                              H(b, c, d) 0b01101001000000000000000000000000
+    //                                       a 0b10011010110100001100010001001100
+    //                          a + H(b, c, d) 0b00000011110100001100010001001100
+    //                                    word 0b01101001110100001101010011100010
+    //                   a + H(b, c, d) + word 0b01101101101000011001100100101110
+    //                              0x6ED9EBA1 0b01101110110110011110101110100001
+    //      a + H(b, c, d) + word + 0x6ED9EBA1 0b11011100011110111000010011001111
+    // a + H(b, c, d) + word + 0x6ED9EBA1 << s 0b11100011110111000010011001111110
+    assert_eq!(T3(
+      0b10011010110100001100010001001100,
+      0b00001111000000000000000000000000,
+      0b00110011000000000000000000000000,
+      0b01010101000000000000000000000000,
+      0b01101001110100001101010011100010,
+      3, // Rotary shift of three
+    ),0b11100011110111000010011001111110);
   }
 
   #[test]
   fn test_process_buffer() {
-    assert_eq!(process_buffer("".to_string().into_bytes()), (0xcfe031d6, 0xe931d16a, 0x59d7b73c, 0x89c0e0c0));
-    assert_eq!(process_buffer("a".to_string().into_bytes()), (0x2cb3bde5, 0x3e461de3, 0x05fb245e, 0xfb24dbd6));
-    assert_eq!(process_buffer("abc".to_string().into_bytes()), (0x017aa448, 0xd852af21, 0x0ae85fc1, 0x729d7aa6));
-    assert_eq!(process_buffer("message digest".to_string().into_bytes()), (0x0a81d913, 0x9fe86454, 0x48061887, 0x014be1c7));
-    assert_eq!(process_buffer("abcdefghijklmnopqrstuvwxyz".to_string().into_bytes()), (0x1c30d79e, 0xbbcd8aa5, 0xed63eea8, 0x2da9df41));
-    assert_eq!(process_buffer("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789".to_string().into_bytes()), (0x8582043f, 0xdb35f241, 0x27e11ce6, 0xf0e453e7));
-    assert_eq!(process_buffer("12345678901234567890123456789012345678901234567890123456789012345678901234567890".to_string().into_bytes()), (0x4ddce33b, 0xf2199c38, 0x7b169c3e, 0x05364fcc));
+    assert_eq!((0x31d6cfe0, 0xd16ae931, 0xb73c59d7, 0xe0c089c0), process_buffer("".to_string().into_bytes()));
+    assert_eq!((0xbde52cb3, 0x1de33e46, 0x245e05fb, 0xdbd6fb24), process_buffer("a".to_string().into_bytes()));
+    assert_eq!((0xa448017a, 0xaf21d852, 0x5fc10ae8, 0x7aa6729d), process_buffer("abc".to_string().into_bytes()));
+    assert_eq!((0xd9130a81, 0x64549fe8, 0x18874806, 0xe1c7014b), process_buffer("message digest".to_string().into_bytes()));
+    assert_eq!((0xd79e1c30, 0x8aa5bbcd, 0xeea8ed63, 0xdf412da9), process_buffer("abcdefghijklmnopqrstuvwxyz".to_string().into_bytes()));
+    assert_eq!((0x043f8582, 0xf241db35, 0x1ce627e1, 0x53e7f0e4), process_buffer("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789".to_string().into_bytes()));
+    assert_eq!((0xe33b4ddc, 0x9c38f219, 0x9c3e7b16, 0x4fcc0536), process_buffer("12345678901234567890123456789012345678901234567890123456789012345678901234567890".to_string().into_bytes()));
   }
 }
+
+
